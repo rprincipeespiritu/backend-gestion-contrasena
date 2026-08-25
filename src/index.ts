@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { frontendOrigins } from "./origins.js";
 import { authRouter } from "./routes/auth.js";
 import { filesRouter } from "./routes/files.js";
 import { foldersRouter } from "./routes/folders.js";
@@ -10,11 +11,19 @@ import { s3Enabled, s3Prefix } from "./s3.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
-const frontend = process.env.FRONTEND_URL ?? "http://localhost:3000";
+const host = process.env.HOST ?? "0.0.0.0";
+const origins = frontendOrigins();
 
+app.set("trust proxy", 1);
 app.use(
   cors({
-    origin: frontend,
+    origin(origin, callback) {
+      if (!origin || origins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
   }),
 );
@@ -25,7 +34,7 @@ app.get("/", (_req, res) => {
   res.json({
     name: "Vault API",
     health: "/health",
-    frontend: frontend,
+    frontend: origins,
     routes: [
       "POST /api/auth/register",
       "POST /api/auth/prelogin",
@@ -62,6 +71,6 @@ app.use("/api/files", filesRouter);
 app.use("/api/items", itemsRouter);
 app.use("/api/folders", foldersRouter);
 
-app.listen(port, () => {
-  console.log(`API Vault en http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`API Vault en http://${host}:${port}`);
 });

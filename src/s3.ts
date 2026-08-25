@@ -27,7 +27,8 @@ function requiredEnv(name: string) {
 }
 
 export function s3Prefix() {
-  return (process.env.S3_PREFIX ?? "dev").replace(/^\/+|\/+$/g, "") || "dev";
+  const fallback = process.env.NODE_ENV === "production" ? "prd" : "dev";
+  return (process.env.S3_PREFIX ?? fallback).replace(/^\/+|\/+$/g, "") || fallback;
 }
 
 export function s3Enabled() {

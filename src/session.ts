@@ -4,6 +4,16 @@ import type { Session } from "./types.js";
 
 const COOKIE = "vault_session";
 
+function cookieOptions() {
+  const production = process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    sameSite: production ? ("none" as const) : ("lax" as const),
+    secure: production,
+    path: "/",
+  };
+}
+
 function secret() {
   const value = process.env.JWT_SECRET;
   if (!value) throw new Error("JWT_SECRET no está configurado");
@@ -21,16 +31,13 @@ export async function signToken(userId: string, email: string) {
 
 export function setSessionCookie(res: Response, token: string) {
   res.cookie(COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+    ...cookieOptions(),
     maxAge: 60 * 60 * 12 * 1000,
   });
 }
 
 export function clearSessionCookie(res: Response) {
-  res.clearCookie(COOKIE, { path: "/" });
+  res.clearCookie(COOKIE, cookieOptions());
 }
 
 export async function readSession(req: Request): Promise<Session | null> {
