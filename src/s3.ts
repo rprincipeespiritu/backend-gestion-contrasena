@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
 
@@ -21,6 +26,10 @@ function requiredEnv(name: string) {
   return value;
 }
 
+export function s3Prefix() {
+  return (process.env.S3_PREFIX ?? "dev").replace(/^\/+|\/+$/g, "") || "dev";
+}
+
 export function s3Enabled() {
   return Boolean(
     process.env.AWS_REGION &&
@@ -40,13 +49,33 @@ function client() {
   });
 }
 
-function bucket() {
+export function bucket() {
   return requiredEnv("S3_BUCKET");
+}
+
+function prefixed(kind: "avatars" | "files", userId: string, name: string) {
+  return `${s3Prefix()}/${kind}/${userId}/${name}`;
 }
 
 export function avatarKey(userId: string, contentType: string) {
   const ext = ALLOWED[contentType] ?? "jpg";
-  return `avatars/${userId}/${randomUUID()}.${ext}`;
+  return prefixed("avatars", userId, `${randomUUID()}.${ext}`);
+}
+
+export function fileObjectKey(userId: string) {
+  return prefixed("files", userId, `${randomUUID()}.bin`);
+}
+
+export function isAvatarKey(key: string, userId: string) {
+  return key.startsWith(`${s3Prefix()}/avatars/${userId}/`);
+}
+
+export function isFileKey(key: string, userId: string) {
+  return key.startsWith(`${s3Prefix()}/files/${userId}/`);
+}
+
+export function keyBelongsToUser(key: string, userId: string) {
+  return isAvatarKey(key, userId) || isFileKey(key, userId);
 }
 
 export async function presignUpload(key: string, contentType: string) {
@@ -57,7 +86,7 @@ export async function presignUpload(key: string, contentType: string) {
       Key: key,
       ContentType: contentType,
     }),
-    { expiresIn: 60 },
+    { expiresIn: 120 },
   );
 }
 
@@ -72,6 +101,15 @@ export async function presignDownload(key: string) {
   );
 }
 
-export function keyBelongsToUser(key: string, userId: string) {
-  return key.startsWith(`avatars/${userId}/`);
+export async function deleteObject(key: string) {
+  await client().send(
+    new DeleteObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+    }),
+  );
+}
+
+export function getS3Client() {
+  return client();
 }

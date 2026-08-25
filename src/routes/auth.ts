@@ -5,7 +5,7 @@ import { clearSessionCookie, readSession, setSessionCookie, signToken } from "..
 import {
   avatarKey,
   isAllowedImageType,
-  keyBelongsToUser,
+  isAvatarKey,
   presignDownload,
   presignUpload,
   s3Enabled,
@@ -261,7 +261,7 @@ authRouter.put("/avatar", async (req, res) => {
     return;
   }
   const key = String(req.body?.key ?? "");
-  if (!keyBelongsToUser(key, session.userId)) {
+  if (!isAvatarKey(key, session.userId)) {
     res.status(400).json({ error: "Clave de archivo no válida" });
     return;
   }
