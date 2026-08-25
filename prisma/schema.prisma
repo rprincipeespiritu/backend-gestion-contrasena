@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String      @id @default(cuid())
+  email              String      @unique
+  authHash           String
+  kdfSalt            String
+  kdfIterations      Int
+  protectedVaultKey  String
+  recoveryAuthHash   String?
+  recoverySalt       String?
+  recoveryBlob       String?
+  recoveryIterations Int?
+  avatarKey          String?
+  createdAt          DateTime    @default(now())
+  folders            Folder[]
+  items              VaultItem[]
+}
+
+model Folder {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nameCipher String
+  createdAt  DateTime    @default(now())
+  items      VaultItem[]
+
+  @@index([userId])
+}
+
+model VaultItem {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId   String?
+  folder     Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  type       String
+  favorite   Boolean   @default(false)
+  cipherBlob String
+  lastUsedAt DateTime?
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([folderId])
+}
