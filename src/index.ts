@@ -32,7 +32,7 @@ app.use(express.json({ limit: "2mb" }));
 
 app.get("/", (_req, res) => {
   res.json({
-    name: "Vault API",
+    name: "CifraBox API",
     health: "/health",
     frontend: origins,
     routes: [
@@ -71,6 +71,6 @@ app.use("/api/files", filesRouter);
 app.use("/api/items", itemsRouter);
 app.use("/api/folders", foldersRouter);
 
-app.listen(port, host, () => {
-  console.log(`API Vault en http://${host}:${port}`);
+app.listen(port, () => {
+  console.log(`API CifraBox en http://localhost:${port}`);
 });
