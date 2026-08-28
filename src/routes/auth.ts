@@ -10,6 +10,7 @@ import {
   presignUpload,
   s3Enabled,
 } from "../s3.js";
+import { notifyAccountCreated } from "../mail.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const authRouter = Router();
@@ -85,12 +86,14 @@ authRouter.post("/register", async (req, res) => {
 
   const token = await signToken(user.id, user.email);
   setSessionCookie(res, token);
+  const mail = await notifyAccountCreated(user.email);
   res.json({
     token,
     user: { id: user.id, email: user.email },
     kdfSalt: user.kdfSalt,
     kdfIterations: user.kdfIterations,
     protectedVaultKey: user.protectedVaultKey,
+    emailSent: mail.sent,
   });
 });
 
