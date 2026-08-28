@@ -7,6 +7,7 @@ import { filesRouter } from "./routes/files.js";
 import { foldersRouter } from "./routes/folders.js";
 import { itemsRouter } from "./routes/items.js";
 import { s3Enabled, s3Prefix } from "./s3.js";
+import { mailConfigured } from "./mail.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -53,6 +54,9 @@ app.get("/health", (_req, res) => {
       bucket: process.env.S3_BUCKET ?? null,
       prefix: s3Prefix(),
       region: process.env.AWS_REGION ?? null,
+    },
+    mail: {
+      enabled: mailConfigured(),
     },
   });
 });
