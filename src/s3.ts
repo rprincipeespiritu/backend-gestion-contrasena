@@ -46,6 +46,8 @@ function client() {
       accessKeyId: requiredEnv("AWS_ACCESS_KEY_ID"),
       secretAccessKey: requiredEnv("AWS_SECRET_ACCESS_KEY"),
     },
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 

@@ -1,11 +1,7 @@
 import "dotenv/config";
 import { PutBucketCorsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { s3CorsOrigins } from "./origins.js";
 import { bucket, getS3Client, s3Enabled, s3Prefix } from "./s3.js";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 function describeError(err: unknown) {
   if (!err || typeof err !== "object") return String(err);
@@ -26,9 +22,12 @@ function describeError(err: unknown) {
 
 async function main() {
   if (!s3Enabled()) {
-    throw new Error("Completa AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY y S3_BUCKET en backend/.env");
+    throw new Error(
+      "Completa AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY y S3_BUCKET",
+    );
   }
 
+  const origins = s3CorsOrigins();
   const s3 = getS3Client();
   const Bucket = bucket();
   const prefix = s3Prefix();
@@ -39,27 +38,30 @@ async function main() {
     new PutObjectCommand({
       Bucket,
       Key: keepKey,
-      Body: "vault-dev",
+      Body: `vault-${prefix}`,
       ContentType: "text/plain",
     }),
   );
   console.log("Prefijo accesible.");
 
-  const cors = JSON.parse(readFileSync(join(root, "s3-cors.json"), "utf8")) as {
-    AllowedHeaders: string[];
-    AllowedMethods: string[];
-    AllowedOrigins: string[];
-    ExposeHeaders: string[];
-    MaxAgeSeconds: number;
-  }[];
   console.log("Aplicando CORS…");
   await s3.send(
     new PutBucketCorsCommand({
       Bucket,
-      CORSConfiguration: { CORSRules: cors },
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedHeaders: ["*"],
+            AllowedMethods: ["GET", "PUT", "HEAD"],
+            AllowedOrigins: origins,
+            ExposeHeaders: ["ETag", "x-amz-request-id"],
+            MaxAgeSeconds: 3000,
+          },
+        ],
+      },
     }),
   );
-  console.log("CORS aplicado para", cors[0]?.AllowedOrigins?.join(", "));
+  console.log("CORS aplicado para", origins.join(", "));
   s3.destroy();
 }
 

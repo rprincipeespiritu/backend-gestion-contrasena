@@ -2,8 +2,11 @@
   {
     "AllowedHeaders": ["*"],
     "AllowedMethods": ["GET", "PUT", "HEAD"],
-    "AllowedOrigins": ["http://localhost:3000"],
-    "ExposeHeaders": ["ETag"],
+    "AllowedOrigins": [
+      "http://localhost:3000",
+      "https://frontend-gestion-contrasena-production.up.railway.app"
+    ],
+    "ExposeHeaders": ["ETag", "x-amz-request-id"],
     "MaxAgeSeconds": 3000
   }
 ]
