@@ -29,7 +29,7 @@ function sender() {
   if (!email) throw new Error("Falta SENDGRID_FROM_EMAIL");
   return {
     email,
-    name: process.env.SENDGRID_FROM_NAME || "CifraBox",
+    name: process.env.SENDGRID_FROM_NAME || "CifraLock",
   };
 }
 
@@ -64,14 +64,14 @@ export async function sendWelcomeEmail(email: string) {
   const loginUrl = `${frontendUrl()}/login`;
   const status = await send({
     to: email,
-    subject: "Tu cuenta en CifraBox está lista",
+    subject: "Tu cuenta en CifraLock está lista",
     html: `
-      <h2>Bienvenido a CifraBox</h2>
+      <h2>Bienvenido a CifraLock</h2>
       <p>Tu cuenta se creó correctamente.</p>
       <p>Entra cuando quieras:</p>
       <p><a href="${escapeHtml(loginUrl)}">${escapeHtml(loginUrl)}</a></p>
       <p>La contraseña maestra nunca sale de tu navegador. Si la olvidas, no hay forma de recuperar la bóveda.</p>
-      <p>Equipo CifraBox</p>
+      <p>Equipo CifraLock</p>
     `,
   });
   console.log("SendGrid welcome status:", status);
@@ -86,14 +86,14 @@ export async function sendOwnerNewUserEmail(email: string) {
   const status = await send({
     to,
     replyTo: email,
-    subject: `Nuevo usuario registrado en CifraBox: ${email}`,
+    subject: `Nuevo usuario registrado en CifraLock: ${email}`,
     html: `
       <h2>Nuevo usuario registrado</h2>
-      <p>Se creó una cuenta nueva en CifraBox.</p>
+      <p>Se creó una cuenta nueva en CifraLock.</p>
       <ul>
         <li><strong>Email:</strong> ${escapeHtml(email)}</li>
       </ul>
-      <p>CifraBox</p>
+      <p>CifraLock</p>
     `,
   });
   console.log("SendGrid owner new-user notify status:", status);
@@ -122,4 +122,51 @@ export async function notifyAccountCreated(email: string) {
   }
 
   return { sent, error };
+}
+
+export function maskEmailDomain() {
+  return (process.env.MASK_EMAIL_DOMAIN ?? "").trim().toLowerCase().replace(/^@/, "");
+}
+
+export function maskAddress(localPart: string) {
+  const domain = maskEmailDomain();
+  return domain ? `${localPart}@${domain}` : `${localPart}@mask.local`;
+}
+
+export function forwardingReady() {
+  return mailConfigured() && Boolean(maskEmailDomain());
+}
+
+function extractAddress(raw: string) {
+  const angle = raw.match(/<([^>]+)>/);
+  const value = (angle?.[1] ?? raw).trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : "";
+}
+
+export async function forwardMaskedEmail(opts: {
+  toUserEmail: string;
+  alias: string;
+  from: string;
+  subject: string;
+  text: string;
+  html: string;
+}) {
+  const fromAddr = extractAddress(opts.from) || opts.from;
+  const notice = `
+    <p style="font-size:13px;color:#64748b">
+      Este mensaje llegó a tu máscara <strong>${escapeHtml(opts.alias)}</strong> en CifraLock.
+      Al responder, el correo irá a ${escapeHtml(fromAddr)}.
+    </p>
+    <hr />
+  `;
+  const body = opts.html?.trim()
+    ? opts.html
+    : `<pre style="white-space:pre-wrap;font-family:inherit">${escapeHtml(opts.text || "(sin contenido)")}</pre>`;
+  const status = await send({
+    to: opts.toUserEmail,
+    replyTo: fromAddr || undefined,
+    subject: `[${opts.alias}] ${opts.subject || "(sin asunto)"}`,
+    html: notice + body,
+  });
+  console.log("SendGrid mask forward status:", status);
 }
