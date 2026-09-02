@@ -23,6 +23,7 @@ model User {
   createdAt          DateTime    @default(now())
   folders            Folder[]
   items              VaultItem[]
+  emailMasks         EmailMask[]
 }
 
 model Folder {
@@ -52,4 +53,16 @@ model VaultItem {
 
   @@index([userId])
   @@index([folderId])
+}
+
+model EmailMask {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  localPart String   @unique
+  label     String?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
