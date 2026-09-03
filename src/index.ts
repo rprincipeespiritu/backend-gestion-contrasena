@@ -65,6 +65,7 @@ app.get("/health", (_req, res) => {
       masks: {
         domain: maskEmailDomain() || null,
         forwardingReady: forwardingReady(),
+        inboundSecretConfigured: Boolean(process.env.MASK_INBOUND_SECRET?.trim()),
       },
     },
   });

@@ -6,6 +6,7 @@ import { prisma } from "../db.js";
 import {
   forwardingReady,
   forwardMaskedEmail,
+  mailConfigured,
   maskAddress,
   maskEmailDomain,
 } from "../mail.js";
@@ -139,6 +140,8 @@ masksRouter.get("/", async (req, res) => {
   res.json({
     domain: maskEmailDomain() || null,
     forwardingReady: forwardingReady(),
+    mailConfigured: mailConfigured(),
+    inboundSecretConfigured: Boolean(process.env.MASK_INBOUND_SECRET?.trim()),
     masks: masks.map(serialize),
   });
 });
