@@ -4,12 +4,14 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { frontendOrigins } from "./origins.js";
 import { authRouter } from "./routes/auth.js";
+import { billingRouter, handleStripeWebhook } from "./routes/billing.js";
 import { filesRouter } from "./routes/files.js";
 import { foldersRouter } from "./routes/folders.js";
 import { itemsRouter } from "./routes/items.js";
 import { masksRouter } from "./routes/masks.js";
 import { s3Enabled, s3Prefix } from "./s3.js";
 import { forwardingReady, mailConfigured, maskEmailDomain } from "./mail.js";
+import { stripeConfigured } from "./plan.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -30,6 +32,9 @@ app.use(
   }),
 );
 app.use(cookieParser());
+app.post("/api/billing/webhook", express.raw({ type: "application/json" }), (req, res) => {
+  void handleStripeWebhook(req, res);
+});
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
@@ -56,6 +61,12 @@ app.get("/", (_req, res) => {
       "GET|POST /api/masks",
       "PATCH|DELETE /api/masks/:id",
       "POST /api/masks/inbound",
+      "GET  /api/billing/config",
+      "GET  /api/billing/me",
+      "POST /api/billing/trial",
+      "POST /api/billing/checkout",
+      "POST /api/billing/portal",
+      "POST /api/billing/webhook",
     ],
   });
 });
@@ -77,10 +88,14 @@ app.get("/health", (_req, res) => {
         inboundSecretConfigured: Boolean(process.env.MASK_INBOUND_SECRET?.trim()),
       },
     },
+    billing: {
+      stripe: stripeConfigured(),
+    },
   });
 });
 
 app.use("/api/auth", authRouter);
+app.use("/api/billing", billingRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/items", itemsRouter);
 app.use("/api/folders", foldersRouter);

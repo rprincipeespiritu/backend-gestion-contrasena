@@ -19,11 +19,18 @@ model User {
   recoverySalt       String?
   recoveryBlob       String?
   recoveryIterations Int?
-  avatarKey          String?
-  createdAt          DateTime    @default(now())
-  folders            Folder[]
-  items              VaultItem[]
-  emailMasks         EmailMask[]
+  avatarKey            String?
+  plan                 String    @default("free")
+  trialEndsAt          DateTime?
+  planExpiresAt        DateTime?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  createdAt            DateTime  @default(now())
+  folders              Folder[]
+  items                VaultItem[]
+  emailMasks           EmailMask[]
+
+  @@index([stripeCustomerId])
 }
 
 model Folder {

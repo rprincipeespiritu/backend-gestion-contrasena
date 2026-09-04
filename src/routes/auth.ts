@@ -11,6 +11,7 @@ import {
   s3Enabled,
 } from "../s3.js";
 import { notifyAccountCreated } from "../mail.js";
+import { planSelect, serializePlan, trialData } from "../plan.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const authRouter = Router();
@@ -74,6 +75,7 @@ authRouter.post("/register", async (req, res) => {
     return;
   }
 
+  const startTrial = Boolean(req.body?.startTrial);
   const user = await prisma.user.create({
     data: {
       email,
@@ -81,6 +83,7 @@ authRouter.post("/register", async (req, res) => {
       kdfSalt,
       kdfIterations,
       protectedVaultKey,
+      ...(startTrial ? trialData() : {}),
     },
   });
 
@@ -94,6 +97,7 @@ authRouter.post("/register", async (req, res) => {
     kdfIterations: user.kdfIterations,
     protectedVaultKey: user.protectedVaultKey,
     emailSent: mail.sent,
+    subscription: serializePlan(user),
   });
 });
 
@@ -148,6 +152,7 @@ authRouter.get("/me", async (req, res) => {
       recoverySalt: true,
       recoveryIterations: true,
       avatarKey: true,
+      ...planSelect,
     },
   });
   if (!user) {
@@ -173,6 +178,7 @@ authRouter.get("/me", async (req, res) => {
     recoveryBlob: user.recoveryBlob,
     recoverySalt: user.recoverySalt,
     recoveryIterations: user.recoveryIterations,
+    subscription: serializePlan(user),
   });
 });
 
