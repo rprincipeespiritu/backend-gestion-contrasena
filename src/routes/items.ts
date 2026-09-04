@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../db.js";
+import { freeItemLimit, hasPremium, planSelect } from "../plan.js";
 import { requireAuth } from "../session.js";
 import { isItemType } from "../types.js";
 
@@ -69,6 +70,22 @@ itemsRouter.post("/", async (req, res) => {
     }
   }
 
+  const owner = await prisma.user.findUnique({
+    where: { id: req.session!.userId },
+    select: planSelect,
+  });
+  if (owner && !hasPremium(owner)) {
+    const count = await prisma.vaultItem.count({
+      where: { userId: req.session!.userId, deletedAt: null },
+    });
+    if (count >= freeItemLimit()) {
+      res.status(403).json({
+        error: `El plan gratuito permite ${freeItemLimit()} elementos. Activa la prueba o pasa a Premium.`,
+      });
+      return;
+    }
+  }
+
   const item = await prisma.vaultItem.create({
     data: {
       userId: req.session!.userId,
@@ -106,6 +123,24 @@ itemsRouter.patch("/:id", async (req, res) => {
     }
   }
 
+  if (req.body?.deletedAt === null && existing.deletedAt) {
+    const owner = await prisma.user.findUnique({
+      where: { id: req.session!.userId },
+      select: planSelect,
+    });
+    if (owner && !hasPremium(owner)) {
+      const count = await prisma.vaultItem.count({
+        where: { userId: req.session!.userId, deletedAt: null },
+      });
+      if (count >= freeItemLimit()) {
+        res.status(403).json({
+          error: `El plan gratuito permite ${freeItemLimit()} elementos. Activa la prueba o pasa a Premium.`,
+        });
+        return;
+      }
+    }
+  }
+
   const item = await prisma.vaultItem.update({
     where: { id: existing.id },
     data: {
@@ -130,6 +165,21 @@ itemsRouter.post("/:id/restore", async (req, res) => {
   if (!existing) {
     res.status(404).json({ error: "Ítem no encontrado" });
     return;
+  }
+  const owner = await prisma.user.findUnique({
+    where: { id: req.session!.userId },
+    select: planSelect,
+  });
+  if (owner && !hasPremium(owner) && existing.deletedAt) {
+    const count = await prisma.vaultItem.count({
+      where: { userId: req.session!.userId, deletedAt: null },
+    });
+    if (count >= freeItemLimit()) {
+      res.status(403).json({
+        error: `El plan gratuito permite ${freeItemLimit()} elementos. Activa la prueba o pasa a Premium.`,
+      });
+      return;
+    }
   }
   const item = await prisma.vaultItem.update({
     where: { id: existing.id },

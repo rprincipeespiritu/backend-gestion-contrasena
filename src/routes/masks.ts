@@ -10,6 +10,7 @@ import {
   maskAddress,
   maskEmailDomain,
 } from "../mail.js";
+import { freeMaskLimit, hasPremium, planSelect, premiumMaskLimit } from "../plan.js";
 import { requireAuth } from "../session.js";
 
 const WORDS = [
@@ -148,6 +149,20 @@ masksRouter.get("/", async (req, res) => {
 
 masksRouter.post("/", async (req, res) => {
   const label = String(req.body?.label ?? "").trim().slice(0, 80) || null;
+  const owner = await prisma.user.findUnique({
+    where: { id: req.session!.userId },
+    select: planSelect,
+  });
+  const limit = owner && hasPremium(owner) ? premiumMaskLimit() : freeMaskLimit();
+  const count = await prisma.emailMask.count({ where: { userId: req.session!.userId } });
+  if (count >= limit) {
+    res.status(403).json({
+      error: owner && hasPremium(owner)
+        ? `Has llegado al máximo de ${limit} máscaras.`
+        : `El plan gratuito permite ${limit} máscara. Activa la prueba o pasa a Premium.`,
+    });
+    return;
+  }
   let created = null;
   for (let i = 0; i < 8; i += 1) {
     const localPart = randomLocalPart();
