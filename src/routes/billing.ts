@@ -3,30 +3,25 @@ import type { Request, Response } from "express";
 import { prisma } from "../db.js";
 import {
   canStartTrial,
+  paddleConfigured,
   premiumPriceLabel,
   serializePlan,
-  stripeConfigured,
   trialData,
   trialDays,
 } from "../plan.js";
 import { requireAuth } from "../session.js";
 import {
-  constructStripeEvent,
-  createCheckoutSession,
-  createPortalSession,
-  retrieveSubscription,
-  stripeApiReady,
-  stripeId,
+  constructPaddleEvent,
+  createCheckoutTransaction,
+  createCustomerPortal,
+  isActiveSubscription,
+  paddleApiReady,
   subscriptionPeriodEnd,
-  type StripeCheckoutSession,
-  type StripeSubscription,
-} from "../stripe.js";
+  type PaddleSubscription,
+  type PaddleTransaction,
+} from "../paddle.js";
 
 export const billingRouter = Router();
-
-function frontendUrl() {
-  return (process.env.FRONTEND_URL ?? "http://localhost:3000").replace(/\/+$/, "");
-}
 
 const planFields = {
   plan: true,
@@ -40,7 +35,7 @@ billingRouter.get("/config", (_req, res) => {
   res.json({
     trialDays: trialDays(),
     premiumPriceLabel: premiumPriceLabel(),
-    checkoutEnabled: stripeConfigured(),
+    checkoutEnabled: paddleConfigured(),
   });
 });
 
@@ -78,8 +73,8 @@ billingRouter.post("/trial", requireAuth, async (req, res) => {
 });
 
 billingRouter.post("/checkout", requireAuth, async (req, res) => {
-  const priceId = process.env.STRIPE_PRICE_ID?.trim();
-  if (!stripeApiReady() || !priceId) {
+  const priceId = process.env.PADDLE_PRICE_ID?.trim();
+  if (!paddleApiReady() || !priceId) {
     res.status(503).json({
       error: "La suscripción Premium aún no está configurada. Puedes usar el plan de prueba.",
     });
@@ -96,19 +91,17 @@ billingRouter.post("/checkout", requireAuth, async (req, res) => {
   }
 
   try {
-    const session = await createCheckoutSession({
+    const transaction = await createCheckoutTransaction({
       priceId,
       userId: req.session!.userId,
       email: user.email,
       customerId: user.stripeCustomerId,
-      successUrl: `${frontendUrl()}/plan?checkout=success`,
-      cancelUrl: `${frontendUrl()}/plan?checkout=cancel`,
     });
-    if (!session.url) {
-      res.status(500).json({ error: "No se pudo iniciar el pago" });
+    if (!transaction.checkout?.url) {
+      res.status(500).json({ error: "No se pudo iniciar el pago con Paddle" });
       return;
     }
-    res.json({ url: session.url });
+    res.json({ url: transaction.checkout.url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "No se pudo iniciar el pago";
     res.status(500).json({ error: message });
@@ -116,8 +109,8 @@ billingRouter.post("/checkout", requireAuth, async (req, res) => {
 });
 
 billingRouter.post("/portal", requireAuth, async (req, res) => {
-  if (!stripeApiReady()) {
-    res.status(503).json({ error: "Stripe no está configurado" });
+  if (!paddleApiReady()) {
+    res.status(503).json({ error: "Paddle no está configurado" });
     return;
   }
   const user = await prisma.user.findUnique({
@@ -129,75 +122,80 @@ billingRouter.post("/portal", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const portal = await createPortalSession(user.stripeCustomerId, `${frontendUrl()}/plan`);
-    res.json({ url: portal.url });
+    const url = await createCustomerPortal(user.stripeCustomerId);
+    res.json({ url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "No se pudo abrir el portal de Stripe";
+    const message = err instanceof Error ? err.message : "No se pudo abrir el portal de Paddle";
     res.status(500).json({ error: message });
   }
 });
 
-export async function handleStripeWebhook(req: Request, res: Response) {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
-  if (!stripeApiReady() || !secret) {
-    res.status(503).json({ error: "Webhook de Stripe no configurado" });
+async function applyPaddleSubscription(sub: PaddleSubscription, fallbackUserId?: string) {
+  const userId = sub.custom_data?.userId || fallbackUserId;
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : await prisma.user.findFirst({ where: { stripeCustomerId: sub.customer_id } });
+  if (!user) return;
+  const active = isActiveSubscription(sub.status);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      plan: active ? "premium" : "free",
+      stripeCustomerId: sub.customer_id,
+      stripeSubscriptionId: active ? sub.id : null,
+      planExpiresAt: active ? subscriptionPeriodEnd(sub) : new Date(),
+    },
+  });
+}
+
+export async function handlePaddleWebhook(req: Request, res: Response) {
+  const secret = process.env.PADDLE_WEBHOOK_SECRET?.trim();
+  if (!paddleApiReady() || !secret) {
+    res.status(503).json({ error: "Webhook de Paddle no configurado" });
     return;
   }
-  const signature = req.headers["stripe-signature"];
+  const signature = req.headers["paddle-signature"];
   if (!signature || typeof signature !== "string") {
-    res.status(400).json({ error: "Falta la firma de Stripe" });
+    res.status(400).json({ error: "Falta la firma de Paddle" });
     return;
   }
 
   let event;
   try {
-    event = constructStripeEvent(req.body as Buffer, signature, secret);
+    event = constructPaddleEvent(req.body as Buffer, signature, secret);
   } catch {
-    res.status(400).json({ error: "Firma de Stripe no válida" });
+    res.status(400).json({ error: "Firma de Paddle no válida" });
     return;
   }
 
   try {
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as StripeCheckoutSession;
-      const userId = session.client_reference_id || session.metadata?.userId;
-      const subId = stripeId(session.subscription);
-      const customerId = stripeId(session.customer);
-      if (userId && subId && customerId) {
-        const sub = await retrieveSubscription(subId);
+    if (event.event_type === "transaction.completed") {
+      const transaction = event.data as PaddleTransaction;
+      const userId = transaction.custom_data?.userId;
+      if (userId && transaction.customer_id && transaction.subscription_id) {
         await prisma.user.update({
           where: { id: userId },
           data: {
             plan: "premium",
-            stripeCustomerId: customerId,
-            stripeSubscriptionId: subId,
-            planExpiresAt: subscriptionPeriodEnd(sub),
+            stripeCustomerId: transaction.customer_id,
+            stripeSubscriptionId: transaction.subscription_id,
           },
         });
       }
     }
 
-    if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
-      const sub = event.data.object as StripeSubscription;
-      const customerId = stripeId(sub.customer);
-      if (customerId) {
-        const user = await prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
-        if (user) {
-          const active = sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
-          await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              plan: active ? "premium" : "free",
-              stripeSubscriptionId: active ? sub.id : null,
-              planExpiresAt: active ? subscriptionPeriodEnd(sub) : new Date(),
-            },
-          });
-        }
-      }
+    if (
+      event.event_type === "subscription.created" ||
+      event.event_type === "subscription.activated" ||
+      event.event_type === "subscription.updated" ||
+      event.event_type === "subscription.canceled" ||
+      event.event_type === "subscription.past_due"
+    ) {
+      await applyPaddleSubscription(event.data as PaddleSubscription);
     }
   } catch (err) {
-    console.error("Error en webhook de Stripe:", err);
-    res.status(500).json({ error: "No se pudo aplicar el evento de Stripe" });
+    console.error("Error en webhook de Paddle:", err);
+    res.status(500).json({ error: "No se pudo aplicar el evento de Paddle" });
     return;
   }
 
