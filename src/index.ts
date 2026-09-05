@@ -4,14 +4,14 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { frontendOrigins } from "./origins.js";
 import { authRouter } from "./routes/auth.js";
-import { billingRouter, handleStripeWebhook } from "./routes/billing.js";
+import { billingRouter, handlePaddleWebhook } from "./routes/billing.js";
 import { filesRouter } from "./routes/files.js";
 import { foldersRouter } from "./routes/folders.js";
 import { itemsRouter } from "./routes/items.js";
 import { masksRouter } from "./routes/masks.js";
 import { s3Enabled, s3Prefix } from "./s3.js";
 import { forwardingReady, mailConfigured, maskEmailDomain } from "./mail.js";
-import { stripeConfigured } from "./plan.js";
+import { paddleConfigured } from "./plan.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -33,7 +33,7 @@ app.use(
 );
 app.use(cookieParser());
 app.post("/api/billing/webhook", express.raw({ type: "application/json" }), (req, res) => {
-  void handleStripeWebhook(req, res);
+  void handlePaddleWebhook(req, res);
 });
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
@@ -89,7 +89,7 @@ app.get("/health", (_req, res) => {
       },
     },
     billing: {
-      stripe: stripeConfigured(),
+      paddle: paddleConfigured(),
     },
   });
 });

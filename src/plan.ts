@@ -8,6 +8,10 @@ export type UserPlanFields = {
   stripeSubscriptionId?: string | null;
 };
 
+export function paddleConfigured() {
+  return Boolean(process.env.PADDLE_API_KEY?.trim() && process.env.PADDLE_PRICE_ID?.trim());
+}
+
 export function trialDays() {
   const n = Number(process.env.TRIAL_DAYS ?? 14);
   return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 90) : 14;
@@ -29,11 +33,7 @@ export function premiumMaskLimit() {
 }
 
 export function premiumPriceLabel() {
-  return (process.env.PREMIUM_PRICE_LABEL ?? "US$ 4,99 / mes").trim();
-}
-
-export function stripeConfigured() {
-  return Boolean(process.env.STRIPE_SECRET_KEY?.trim() && process.env.STRIPE_PRICE_ID?.trim());
+  return (process.env.PREMIUM_PRICE_LABEL ?? "US$ 3,99 / mes").trim();
 }
 
 export function resolvePlan(user: UserPlanFields): PlanId {
@@ -78,9 +78,10 @@ export function serializePlan(user: UserPlanFields) {
     trialDays: trialDays(),
     trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
     planExpiresAt: plan === "premium" ? (user.planExpiresAt?.toISOString() ?? null) : null,
+    priceLabel: premiumPriceLabel(),
     canStartTrial: canStartTrial(user),
-    checkoutEnabled: stripeConfigured(),
-    portalEnabled: Boolean(user.stripeCustomerId && stripeConfigured()),
+    checkoutEnabled: paddleConfigured(),
+    portalEnabled: Boolean(user.stripeCustomerId && paddleConfigured()),
     limits: {
       items: premium ? null : freeItemLimit(),
       masks: premium ? premiumMaskLimit() : freeMaskLimit(),
