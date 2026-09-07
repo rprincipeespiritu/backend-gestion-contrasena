@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { frontendOrigins } from "./origins.js";
+import { frontendOrigins, isAllowedOrigin } from "./origins.js";
 import { authRouter } from "./routes/auth.js";
 import { billingRouter, handlePaddleWebhook } from "./routes/billing.js";
 import { filesRouter } from "./routes/files.js";
@@ -22,11 +22,7 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || origins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(null, false);
+      callback(null, isAllowedOrigin(origin));
     },
     credentials: true,
   }),
@@ -101,6 +97,6 @@ app.use("/api/items", itemsRouter);
 app.use("/api/folders", foldersRouter);
 app.use("/api/masks", masksRouter);
 
-app.listen(port, () => {
-  console.log(`API CifraLock en http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`API CifraLock en http://${host}:${port}`);
 });
