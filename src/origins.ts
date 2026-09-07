@@ -17,11 +17,23 @@ export function parseOriginList(...values: Array<string | undefined>) {
   return origins;
 }
 
-export function s3CorsOrigins() {
+/** Orígenes desde los que el navegador llama al API (CORS + cookies). */
+export function allowedFrontendOrigins() {
   return parseOriginList(
     "http://localhost:3000",
+    "https://cifralock.com",
+    "https://www.cifralock.com",
     "https://frontend-gestion-contrasena-production.up.railway.app",
     process.env.FRONTEND_URL,
-    process.env.S3_CORS_ORIGINS,
+    process.env.CORS_ORIGINS,
   );
+}
+
+export function isAllowedOrigin(origin: string | undefined) {
+  if (!origin) return true;
+  return allowedFrontendOrigins().includes(normalizeOrigin(origin));
+}
+
+export function s3CorsOrigins() {
+  return parseOriginList(...allowedFrontendOrigins(), process.env.S3_CORS_ORIGINS);
 }

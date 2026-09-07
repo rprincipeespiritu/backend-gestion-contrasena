@@ -10,15 +10,19 @@ import { itemsRouter } from "./routes/items.js";
 import { masksRouter } from "./routes/masks.js";
 import { s3Enabled, s3Prefix } from "./s3.js";
 import { forwardingReady, mailConfigured, maskEmailDomain } from "./mail.js";
+import { allowedFrontendOrigins, isAllowedOrigin } from "./origins.js";
 import { paddleConfigured } from "./plan.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 const frontend = process.env.FRONTEND_URL ?? "http://localhost:3000";
+const corsOrigins = allowedFrontendOrigins();
 
 app.use(
   cors({
-    origin: frontend,
+    origin(origin, callback) {
+      callback(null, isAllowedOrigin(origin));
+    },
     credentials: true,
   }),
 );
@@ -33,7 +37,8 @@ app.get("/", (_req, res) => {
   res.json({
     name: "CifraLock API",
     health: "/health",
-    frontend: frontend,
+    frontend,
+    corsOrigins,
     routes: [
       "POST /api/auth/register",
       "POST /api/auth/prelogin",
