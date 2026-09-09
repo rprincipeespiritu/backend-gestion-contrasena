@@ -1,0 +1,10 @@
+---
+description: Hacer cambios de código en la rama dev por defecto
+alwaysApply: true
+---
+
+# Rama de trabajo
+
+- Toda modificación de código fuente va en la rama `dev`, salvo que el usuario pida otra rama.
+- Antes de editar, comprueba la rama actual. Si no es `dev`, cambia a `dev`.
+- No hagas merge ni push a `prd` a menos que el usuario lo pida.

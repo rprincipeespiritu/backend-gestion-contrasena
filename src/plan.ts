@@ -13,8 +13,8 @@ export function paddleConfigured() {
 }
 
 export function trialDays() {
-  const n = Number(process.env.TRIAL_DAYS ?? 14);
-  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 90) : 14;
+  const n = Number(process.env.TRIAL_DAYS ?? 30);
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 90) : 30;
 }
 
 export function freeItemLimit() {
