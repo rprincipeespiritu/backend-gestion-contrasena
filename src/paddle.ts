@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { paddleCheckoutConfig, paddleCheckoutUrl } from "./checkout-config.js";
 
 type PaddleErrorBody = { error?: { detail?: string; code?: string } };
 type PaddleEnvelope<T> = { data: T } & PaddleErrorBody;
@@ -66,7 +67,10 @@ export function createCheckoutTransaction(input: {
   email: string;
   customerId?: string | null;
 }) {
+  if (!paddleCheckoutConfig()) throw new Error("Configura PADDLE_CLIENT_TOKEN para el entorno de Paddle de CifraLock.");
+  const checkoutUrl = paddleCheckoutUrl();
   return paddleRequest<PaddleTransaction>("POST", "/transactions", {
+    checkout: { url: checkoutUrl },
     items: [{ price_id: input.priceId, quantity: 1 }],
     custom_data: { userId: input.userId },
     ...(input.customerId

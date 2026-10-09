@@ -21,6 +21,8 @@ import {
   type PaddleTransaction,
 } from "../paddle.js";
 
+import { paddleCheckoutConfig } from "../checkout-config.js";
+
 export const billingRouter = Router();
 
 const planFields = {
@@ -35,6 +37,7 @@ billingRouter.get("/config", (_req, res) => {
   res.json({
     trialDays: trialDays(),
     premiumPriceLabel: premiumPriceLabel(),
+    paddle: paddleCheckoutConfig(),
     checkoutEnabled: paddleConfigured(),
   });
 });
