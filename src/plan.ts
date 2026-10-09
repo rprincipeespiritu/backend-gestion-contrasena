@@ -1,3 +1,5 @@
+import { paddleCheckoutConfig } from "./checkout-config.js";
+
 export type PlanId = "free" | "trial" | "premium";
 
 export type UserPlanFields = {
@@ -9,7 +11,7 @@ export type UserPlanFields = {
 };
 
 export function paddleConfigured() {
-  return Boolean(process.env.PADDLE_API_KEY?.trim() && process.env.PADDLE_PRICE_ID?.trim());
+  return Boolean(process.env.PADDLE_API_KEY?.trim() && process.env.PADDLE_PRICE_ID?.trim() && paddleCheckoutConfig());
 }
 
 export function trialDays() {
